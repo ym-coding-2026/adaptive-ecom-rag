@@ -95,6 +95,12 @@ uvicorn app:app --reload --port 8000
 
 > 没设 `DEEPSEEK_API_KEY` 也能跑：生成会降级成「基于引用的结构化摘要」，整条链路可演示。
 
+### 网页界面效果
+
+单事实问题被路由到 SINGLE（绿徽章），真模型依据知识库回答并列出引用来源：
+
+![网页聊天界面：SINGLE 路由 + 引用](docs/screenshot-chat.png)
+
 ### 接口一览
 
 | 方法 | 路径 | 说明 |
