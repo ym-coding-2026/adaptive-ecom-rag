@@ -1,0 +1,16 @@
+# 运行必需（本机 ai-intel-officer 的 venv 已装，可直接复用）
+langchain>=0.3
+langgraph>=0.2
+numpy>=1.24
+pydantic>=2.0
+fastapi>=0.110
+uvicorn>=0.29              # 跑网页服务：uvicorn app:app --reload --port 8000
+
+# 稠密向量（语义检索，已默认启用；首次会经 HF 镜像下载 BGE 模型 ~130MB）
+sentence-transformers>=3.0
+#   （无需联网：retrieval.py 的 dense="auto" 在加载失败时自动降级到哈希基线）
+
+# 可选升级（留作扩展）：
+# scikit-learn            # 也可用作 TF-IDF 稠密向量
+# bge-reranker-base       # cross-encoder 精排（在 RRF 之后对 top-20 重排，进一步提升精度）
+# 注：React 前端 / Docker 三档部署 / CI 等属于后续可扩展方向，本项目当前未实现。

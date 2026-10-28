@@ -1,0 +1,14 @@
+# 本地面试准备文档，不推上 GitHub（含内部参考说明）
+简历写法.md
+
+# 密钥/本地环境变量文件，绝不可进 GitHub
+.env
+*.env
+.env.local
+
+# Python 常规忽略
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/

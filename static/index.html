@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>云栖数码 · 自适应客服 RAG</title>
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --line: #e6e9ef;
+    --text: #1f2430;
+    --muted: #8a93a6;
+    --accent: #3b6cff;
+    --user-bubble: #3b6cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", Segoe UI, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 14px 20px;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    flex: 0 0 auto;
+  }
+  header h1 { margin: 0; font-size: 17px; }
+  header p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  #chat {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 18px 16px;
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .msg { display: flex; margin-bottom: 14px; }
+  .msg.user { justify-content: flex-end; }
+  .msg.bot  { justify-content: flex-start; }
+  .bubble {
+    max-width: 78%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    line-height: 1.55;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.user .bubble { background: var(--user-bubble); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.bot  .bubble { background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .bot-card { width: 100%; max-width: 78%; }
+  .meta {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 6px; font-size: 12px;
+  }
+  .badge {
+    padding: 2px 9px; border-radius: 999px; font-weight: 600; color: #fff; font-size: 11px;
+  }
+  .b-DIRECT { background: #6b7280; }
+  .b-SINGLE { background: #16a34a; }
+  .b-MULTI  { background: #7c3aed; }
+  .b-AGENT  { background: #ea580c; }
+  .b-REFUSE { background: #dc2626; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .cites { margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 6px; font-size: 12px; }
+  .cites div { color: var(--muted); padding: 1px 0; }
+  .pending {
+    margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+    background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; font-size: 12px;
+  }
+  #inputbar {
+    flex: 0 0 auto;
+    border-top: 1px solid var(--line);
+    background: var(--card);
+    padding: 12px 16px;
+  }
+  #form { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; }
+  #q {
+    flex: 1; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px;
+    font-size: 14px; outline: none;
+  }
+  #q:focus { border-color: var(--accent); }
+  button {
+    padding: 0 20px; border: none; border-radius: 10px; background: var(--accent);
+    color: #fff; font-size: 14px; cursor: pointer;
+  }
+  button:disabled { opacity: .6; cursor: default; }
+  .hint { max-width: 760px; margin: 6px auto 0; font-size: 12px; color: var(--muted); }
+  .typing { color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>云栖数码 · 自适应客服 RAG</h1>
+    <p>同一个问题会被自动分流到 5 条路径之一：DIRECT / SINGLE / MULTI / AGENT / REFUSE</p>
+  </header>
+
+  <div id="chat">
+    <div class="msg bot">
+      <div class="bot-card">
+        <div class="meta"><span class="badge b-DIRECT">DIRECT</span><span class="sub">客服已就绪</span></div>
+        <div class="bubble">你好，我是云栖数码的智能客服～ 可以问我商品参数、退换货政策、物流订单、会员权益。试试：「X1 和 Air 哪个更值得买」「查订单 SO2026001」「我要退 SO2026003」。</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="inputbar">
+    <form id="form">
+      <input id="q" autocomplete="off" placeholder="输入你的问题，回车发送…" />
+      <button id="send" type="submit">发送</button>
+    </form>
+    <div class="hint">提示：未配置 DEEPSEEK_API_KEY 时会自动降级为「引用列表」演示模式，不会报错。</div>
+  </div>
+
+<script>
+  const chat = document.getElementById("chat");
+  const form = document.getElementById("form");
+  const q = document.getElementById("q");
+  const send = document.getElementById("send");
+
+  function addUser(text) {
+    const d = document.createElement("div");
+    d.className = "msg user";
+    d.innerHTML = '<div class="bubble"></div>';
+    d.querySelector(".bubble").textContent = text;
+    chat.appendChild(d);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function addBot(r) {
+    const strat = r.strategy || "SINGLE";
+    const card = document.createElement("div");
+    card.className = "msg bot";
+    const citeHtml = (r.citations || []).map(c =>
+      `<div>· 《${c.title}》 (${c.source}) [${c.doc_id}]</div>`).join("");
+    const pending = r.pending_action
+      ? `<div class="pending">⚠ 待人工确认（${r.pending_action.pending_action}）订单 ${r.pending_action.order_id}：需客服在后台核实后执行</div>`
+      : "";
+    card.innerHTML = `
+      <div class="bot-card">
+        <div class="meta">
+          <span class="badge b-${strat}">${strat}</span>
+          <span class="sub">${r.reason || ""}</span>
+          <span class="sub">检索 ${r.hops} 跳 · 引用 ${ (r.citations||[]).length } 条</span>
+        </div>
+        <div class="bubble"></div>
+        ${citeHtml ? `<div class="cites">${citeHtml}</div>` : ""}
+        ${pending}
+      </div>`;
+    card.querySelector(".bubble").textContent = r.answer || "";
+    chat.appendChild(card);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  async function ask(text) {
+    addUser(text);
+    const typing = document.createElement("div");
+    typing.className = "msg bot";
+    typing.innerHTML = '<div class="bubble typing">思考中…</div>';
+    chat.appendChild(typing);
+    chat.scrollTop = chat.scrollHeight;
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: text }),
+      });
+      const data = await res.json();
+      chat.removeChild(typing);
+      addBot(data);
+    } catch (e) {
+      chat.removeChild(typing);
+      const err = document.createElement("div");
+      err.className = "msg bot";
+      err.innerHTML = '<div class="bot-card"><div class="bubble">请求失败：' + e + '</div></div>';
+      chat.appendChild(err);
+    }
+  }
+
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const text = q.value.trim();
+    if (!text) return;
+    q.value = "";
+    ask(text);
+  });
+</script>
+</body>
+</html>
