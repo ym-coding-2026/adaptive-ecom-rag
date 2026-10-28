@@ -22,17 +22,20 @@
 
 ## 架构（LangGraph 状态机）
 
-```
-        用户输入
-          │
-       [护栏 guard]  ── 拦注入/越权/越狱
-          │
-       [路由 route]  ── 判断走哪条路
-      ┌───┼───┬───┬───┐
-    DIRECT SINGLE MULTI AGENT REFUSE
-      └───┼───┴───┴───┘
-          │
-       [输出 output]  ── 整理答案 + 引用 + trace_id
+```mermaid
+flowchart TD
+    U[用户输入] --> G[护栏 guard<br/>拦注入 / 越权 / 越狱]
+    G --> R[路由 route<br/>判断走哪条路]
+    R -->|问候 / 问自身| D[DIRECT<br/>不检索直接回]
+    R -->|单一事实| S[SINGLE<br/>一次混合检索]
+    R -->|对比 / 复合| M[MULTI<br/>拆子问题 + 多跳 + 自纠错]
+    R -->|查单 / 物流 / 退货| A[AGENT<br/>业务工具：读直查 / 写挂起]
+    R -->|注入 / 越权| F[REFUSE<br/>拒答]
+    D --> O[输出<br/>答案 + 引用 + trace_id]
+    S --> O
+    M --> O
+    A --> O
+    F --> O
 ```
 
 - **DIRECT**：问候 / 问助手本身 → 不检索，直接回
@@ -72,14 +75,20 @@ adaptive-ecom-rag/
 ## 快速开始
 
 ```bash
-# 复用本机已有的 venv（已装 langgraph + fastapi + uvicorn），或自建：
-#   python -m venv .venv && pip install -r requirements.txt
+# 1. 建并激活虚拟环境
+python -m venv .venv
+.venv\Scripts\activate                        # Windows
+# macOS / Linux: source .venv/bin/activate
 
-python cli.py "七天无理由退货怎么操作"        # 命令行：单次提问
-python cli.py --interactive                  # 命令行：交互模式
-python eval.py                               # 跑离线评测
+# 2. 安装依赖
+pip install -r requirements.txt
 
-# 网页界面（面试官能当场在浏览器点着玩）
+# 3. 命令行用法
+python cli.py "七天无理由退货怎么操作"        # 单次提问
+python cli.py --interactive                  # 交互模式
+python eval.py                               # 跑离线评测（首次会下载 BGE + reranker 模型，约数百 MB）
+
+# 4. 网页界面（面试官能当场在浏览器点着玩）
 uvicorn app:app --reload --port 8000
 # 然后打开 http://127.0.0.1:8000
 ```
